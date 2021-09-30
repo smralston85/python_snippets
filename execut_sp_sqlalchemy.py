@@ -14,12 +14,12 @@ start_job_tracking(job_key,job_start)
 
 
 
-xwalk = pd.read_sql_query(xwalk_q,db_engine_dev47)
+xwalk = pd.read_sql_query(xwalk_q,db_engine_confidential)
 xwalk_practitioner = xwalk[(xwalk['RecordType']=='Practitioner')]
 xwalk_group = xwalk[(xwalk['RecordType']=='Group')]
 
-active_prov =pd.read_sql_query(active_prov_q,db_engine_alex)
-term_prov = pd.read_sql_query(term_prov_q,db_engine_alex)
+active_prov =pd.read_sql_query(active_prov_q,db_engine_confidential)
+term_prov = pd.read_sql_query(term_prov_q,db_engine_confidential)
 
 prac_cols =[0,1,2,3,7,8,10,11,12]
 active_prov_prac = active_prov[active_prov.columns[prac_cols]]
@@ -30,12 +30,12 @@ term_prov_prac = term_prov[term_prov.columns[prac_cols]]
 xwalk_practitioner.reset_index(inplace=True)
 
 active_prov_prac_final =pd.merge(active_prov_prac,
-                    xwalk_practitioner[['PROVIDER_TYPE_CD','HMPAType']],
+                    xwalk_practitioner[['PROVIDER_TYPE_CD','confidential']],
                     how='left',
                     on='PROVIDER_TYPE_CD')
 
 term_prov_prac_final =pd.merge(term_prov_prac,
-                    xwalk_practitioner[['PROVIDER_TYPE_CD','HMPAType']],
+                    xwalk_practitioner[['PROVIDER_TYPE_CD','confidential']],
                     how='left',
                     on='PROVIDER_TYPE_CD')
 
@@ -50,14 +50,14 @@ active_prov_group.reset_index(inplace=True)
 term_prov_group.reset_index(inplace=True)
 
 active_prov_group_final =pd.merge(active_prov_group,
-                    xwalk_group[['PROVIDER_TYPE_CD','HMPAType']],
+                    xwalk_group[['PROVIDER_TYPE_CD','confidential']],
                     how='left',
                     left_on='GROUP_TYPE',
                     right_on='PROVIDER_TYPE_CD')
 active_prov_group_final.drop(['index','PROVIDER_TYPE_CD'],axis=1,inplace=True)
 
 term_prov_group_final = pd.merge(term_prov_group,
-                    xwalk_group[['PROVIDER_TYPE_CD','HMPAType']],
+                    xwalk_group[['PROVIDER_TYPE_CD','confidential']],
                     how='left',
                     left_on='GROUP_TYPE',
                     right_on='PROVIDER_TYPE_CD')
@@ -66,33 +66,29 @@ term_prov_group_final.drop(['index','PROVIDER_TYPE_CD'],axis=1,inplace=True)
 group_final = pd.concat([active_prov_group_final,term_prov_group_final])
 prac_final = pd.concat([active_prov_prac_final,term_prov_prac_final])
 
-group_final = group_final[['RECORD_TYPE','PROVIDER_GROUP_NM','PROVIDER_GROUP_NPI','GROUP_TAX_ID',
-                                'FACETS_ID_TYPE','PROVIDER_GROUP_PROVIDER_ID','HMPAType','PROVIDER_ID',
-                                'PROVIDER_NTWK_REL_EFF_DT','PROVIDER_NTWK_REL_TERM_DT']]
+group_final = group_final[['confidential']]
 
-prac_final = prac_final[['RECORD_TYPE','PROVIDER_NM','PRACTITIONER_NPI','HMPAType','PROVIDER_GROUP_PROVIDER_ID',
-                            'FACETS_ID_TYPE','PROVIDER_ID','PROVIDER_NTWK_REL_EFF_DT',
-                            'PROVIDER_NTWK_REL_TERM_DT']]
+prac_final = prac_final[['confidential']]
 
 #delete records that exist today. This is useful if we need to run twice for some reason
-result=db_engine_adl.execute(delete_query_group)
-result=db_engine_adl.execute(delete_query_prac)
+result=db_engine_confidential.execute(delete_query_group)
+result=db_engine_confidential.execute(delete_query_prac)
 
 transaction_dts = datetime.now()
 group_final['TRANSACTION_DTS']=transaction_dts
 group_final = group_final[~group_final.GROUP_TAX_ID.str.contains("N/A")]
 group_record_count = len(group_final.index)
-group_final.to_sql('PROVIDER_TRACKING_GROUP',db_engine_adl,index=False,if_exists='append')
+group_final.to_sql('PROVIDER_TRACKING_GROUP',db_engine_confidential,index=False,if_exists='append')
 
 prac_final['TRANSACTION_DTS']=transaction_dts
 prac_record_count = len(prac_final.index)
-prac_final.to_sql('PROVIDER_TRACKING_PRACTITIONER',db_engine_adl,index=False,if_exists='append')
+prac_final.to_sql('PROVIDER_TRACKING_PRACTITIONER',db_engine_confidential,index=False,if_exists='append')
 
 read_record_count = prac_record_count+group_record_count
 
 read_record_count_job(job_key,read_record_count)
 
-result = db_engine_adl.execute(get_server_written_record_count)
+result = db_engine_confidential.execute(get_server_written_record_count)
 result = result.first()
 server_record_count = result.Record_Count
 
@@ -100,10 +96,10 @@ wrote_record_count_job(job_key,server_record_count)
 
 
 file_timestamp = datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')[:-3]
-export_group_report= pd.read_sql_query(get_group_report,db_engine_adl)
+export_group_report= pd.read_sql_query(get_group_report,db_engine_confidential)
 export_group_report.to_excel(r'C:\Users\y14082\OneDrive - healthnow.org\Projects\ActiveTermedProvidersFileFeed\sent_files\PROVIDER_GROUP_TRACKING_'+str(file_timestamp)+'.xlsx',header=True, index = False)
 
-export_prac_report= pd.read_sql_query(get_prac_report,db_engine_adl)
+export_prac_report= pd.read_sql_query(get_prac_report,db_engine_confidential)
 export_prac_report.to_excel(r'C:\Users\y14082\OneDrive - healthnow.org\Projects\ActiveTermedProvidersFileFeed\sent_files\PROVIDER_PRACTITIONER_TRACKING_'+str(file_timestamp)+'.xlsx',header=True, index = False)
 
 
@@ -141,12 +137,12 @@ from sqlalchemy import create_engine,text
 
 
 
-alex_conn = ('mssql+pyodbc://<Server>/<db>?driver=SQL+Server')
-db_engine_alex = create_engine(alex_conn)
-dev47_conn = ('mssql+pyodbc://<Server>/<db>?driver=SQL+Server')
-db_engine_dev47 = create_engine(dev47_conn)
-adl_conn = ('mssql+pyodbc://<Server>/<db>?driver=SQL+Server')
-db_engine_adl = create_engine(adl_conn)
+aconfidential_conn = ('mssql+pyodbc://<Server>/<db>?driver=SQL+Server')
+db_engine_confidential = create_engine(confidential_conn)
+confidential_conn = ('mssql+pyodbc://<Server>/<db>?driver=SQL+Server')
+db_engine_confidential = create_engine(confidential_conn)
+confidentialconn = ('mssql+pyodbc://<Server>/<db>?driver=SQL+Server')
+db_engine_confidential = create_engine(confidential_conn)
 
 
 core_date = date.today()
